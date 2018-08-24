@@ -1,5 +1,6 @@
 const mongoose = require('mongoose'); 
 const express = require('express'); 
+const bodyParser = require('body-parser');
 
 const DATABASE_URL = 'mongodb://localhost/blog-app';
 const PORT = process.env.PORT || 8080;
@@ -8,8 +9,10 @@ const PORT = process.env.PORT || 8080;
 mongoose.Promise = global.Promise;
 
 
+
 const app = express();
 app.use(express.json());
+app.use(bodyParser.json());
 
 
 const { BlogPost } = require("./models")
@@ -30,7 +33,7 @@ app.get("/blog-post", (req,res) => {
 		})
 });
 
-app.get("/blog-post/:id", (req,res) => {
+app.get("/blog-post/:id", (req, res) => {
 	BlogPost.findById(req.params.id)
 	.then(post => {
 		res.json(post.serialize())
@@ -64,8 +67,8 @@ app.post("/blog-post", (req, res) => {
 		});
 });
 
-app.put("/posts/:id", (req, res) => {
-	if (!(res.params.id && req.body.id === req.body.id)) {
+app.put("/blog-post/:id", (req, res) => {
+	if (!(req.params.id && req.body.id === req.body.id)) {
 		const message = `Request path id (${req.params.id}) and request body id (${req.body.id}) must match.`
 		console.error(message);
 		return res.status(400).json({message: message});
@@ -81,14 +84,14 @@ app.put("/posts/:id", (req, res) => {
 	});
 
 	BlogPost
-		.findbyIdAndUpdate(req.params.id, {$set: toUpdate })
+		.findByIdAndUpdate(req.params.id, {$set: toUpdate })
 		.then(posts => res.status(204).end())
 		.catch(err => res.status(500).json({message: "Internal Server Error"}));
 });
 
-app.delete("/posts/:id", (req, res) => {
+app.delete("/blog-post/:id", (req, res) => {
 	BlogPost.findByIdAndRemove(req.params.id)
-		.then(posts => res.status(204).end())
+		.then(posts => res.status(204).json({message: "Item Deleted"}).end())
 		.catch(err => res.status(500).json({message: "Internal Server Error"}));
 });
 
@@ -97,6 +100,7 @@ function runServer(databaseUrl, port = PORT) {
   return new Promise((resolve, reject) => {
     mongoose.connect(
       databaseUrl,
+      { useNewUrlParser: true },
       err => {
         if (err) {
           return reject(err);
