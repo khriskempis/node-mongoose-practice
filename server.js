@@ -1,21 +1,20 @@
+"use strict"; 
+
 const mongoose = require('mongoose'); 
 const express = require('express'); 
-const bodyParser = require('body-parser');
 
-const DATABASE_URL = 'mongodb://localhost/blog-app';
-const PORT = process.env.PORT || 8080;
+// const DATABASE_URL = 'mongodb://localhost/blog-app';
+// const PORT = process.env.PORT || 8080;
+
+const { PORT, DATABASE_URL } = require('./config.js')
+const { BlogPost, Author } = require("./models")
 
 
 mongoose.Promise = global.Promise;
 
 
-
 const app = express();
 app.use(express.json());
-app.use(bodyParser.json());
-
-
-const { BlogPost } = require("./models")
 
 
 
@@ -45,7 +44,7 @@ app.get("/blog-post/:id", (req, res) => {
 });
 
 app.post("/blog-post", (req, res) => {
-	const requiredFields = ["title", "content", "author"];
+	const requiredFields = ["title", "content", "author_id"];
 	for(let i=0; i < requiredFields.length; i++){
 		const field = requiredFields[i];
 		if (!(field in req.body)){
@@ -54,11 +53,22 @@ app.post("/blog-post", (req, res) => {
 			return res.status(400).send(message); 
 		}
 	}
+	Author.findById(req.body.author_id)
+		.then(author => {
+				console.log(author)
+		})
+		.catch(err => {
+			console.error(err);
+		const message = `Author with id ${req.body.author_id} does not exist`
+			return res.status(400).send(message);
+		})
+		;
+		
 
 	BlogPost.create({
 		title: req.body.title,
 		content: req.body.content,
-		author: req.body.author
+		author: req.body.author_id
 	})
 		.then(post => res.status(201).json(post.serialize()))
 		.catch(err => {
@@ -75,7 +85,7 @@ app.put("/blog-post/:id", (req, res) => {
 	}
 
 	const toUpdate = {};
-	const updateableFields = ["title", "content", "author"];
+	const updateableFields = ["title", "content"];
 
 	updateableFields.forEach(field => {
 		if (field in req.body) {
@@ -85,15 +95,78 @@ app.put("/blog-post/:id", (req, res) => {
 
 	BlogPost
 		.findByIdAndUpdate(req.params.id, {$set: toUpdate })
-		.then(posts => res.status(204).end())
+		.then(post => res.status(204).end())
 		.catch(err => res.status(500).json({message: "Internal Server Error"}));
 });
 
 app.delete("/blog-post/:id", (req, res) => {
 	BlogPost.findByIdAndRemove(req.params.id)
-		.then(posts => res.status(204).json({message: "Item Deleted"}).end())
+		.then(posts => res.json({message: "Item Deleted"}).status(204).end())
 		.catch(err => res.status(500).json({message: "Internal Server Error"}));
 });
+
+
+
+// Authors Endpoints 
+
+
+app.post('/authors', (req, res) => {
+	const requiredFields = ["firstName", "lastName", "userName"]
+	for(let i=0; i < requiredFields.length; i++){
+		let field = requiredFields[i]
+		if (!(field in req.body)) {
+			const message = `Missing ${field} in req.body`;
+			console.error(message);
+			return res.status(400).send(message); 
+		}
+	}
+
+	Author.create({
+		firstName: req.body.firstName,
+		lastName: req.body.lastName,
+		userName: req.body.userName
+	})
+	.then(author => res.status(201).json(author.serialize()))
+});
+
+
+app.put('/authors/:id', (req, res) => {
+	if (!(req.params.id && req.body.id === req.body.id)) {
+		const message = `Request path id (${req.params.id}) and request body id (${req.body.id}) must match.`
+		console.error(message);
+		return res.status(400).json({message: message});
+	}
+
+	const toUpdate = {};
+	const updateableFields = ["firstName", "lastName", "userName"];
+
+	updateableFields.forEach(field => {
+		if (field in req.body) {
+			toUpdate[field] = req.body[field];
+		}
+	});
+
+	Author
+		.findByIdAndUpdate(req.params.id, {$set: toUpdate })
+		.then(author => res.status(204).json(author))
+});
+
+app.delete('/authors/:id', (req, res) => {
+	let authorId = req.params.id;
+	Author.findByIdAndRemove(authorId)
+	.then(author => res.status(204).end())
+	.catch(err => res.status(500).json({message: "Internal Server Error"})) 
+
+	BlogPost.findByIdAndRemove(authorId)
+	.then(posts => res.status(204).end())
+	.catch(err => res.status(500).json({message: "Internal Server Error"}))
+});
+
+
+
+// runnning Server
+
+let server; 
 
 
 function runServer(databaseUrl, port = PORT) {
